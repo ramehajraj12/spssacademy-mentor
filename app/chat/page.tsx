@@ -112,6 +112,7 @@ function extractNumbers(input: string) {
 function buildAnswer(input: string) {
   const intent = detectIntent(input);
   const numbers = extractNumbers(input);
+  const understoodQuestion = `Pyetja që kuptova: "${input}"`;
   const contextLine = numbers
     ? `Vlerat që përmende: ${numbers}. Do t'i trajtoj si orientuese, sepse interpretimi varet nga konteksti dhe dizajni i studimit.`
     : "Nëse ke vlera nga SPSS, mund t'i shtosh në mesazhin tjetër dhe do t'i integroj në interpretim.";
@@ -119,7 +120,9 @@ function buildAnswer(input: string) {
   const templates: Record<Intent, { meta: string; content: string }> = {
     cronbach: {
       meta: "Besueshmëri e shkallës",
-      content: `E kuptova si pyetje për Cronbach's Alpha dhe besueshmërinë e instrumentit.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për Cronbach's Alpha dhe besueshmërinë e instrumentit.
 
 1. Çfarë mat: Cronbach's Alpha vlerëson konsistencën e brendshme të itemeve që supozohet të matin të njëjtin konstrukt.
 2. Si lexohet: vlerat më të larta zakonisht tregojnë konsistencë më të mirë, por interpretimi varet nga numri i itemeve, fusha dhe qëllimi i shkallës.
@@ -131,7 +134,9 @@ ${contextLine}`
     },
     regression: {
       meta: "Regresion",
-      content: `E kuptova si pyetje për regresion.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për regresion.
 
 1. Përcakto variablën e varur dhe prediktorët.
 2. Kontrollo supozimet: linearitet, normalitet i mbetjeve, homoskedasticitet, multikolinearitet dhe outliers.
@@ -145,7 +150,9 @@ ${contextLine}`
     },
     anova: {
       meta: "Krahasim grupesh",
-      content: `E kuptova si pyetje për ANOVA ose krahasim mesataresh.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për ANOVA ose krahasim mesataresh.
 
 1. ANOVA përdoret kur krahason mesataret e tri ose më shumë grupeve.
 2. Kontrollo normalitetin, homogjenitetin e variancave dhe pavarësinë e observimeve.
@@ -157,7 +164,9 @@ Nëse ke vetëm dy grupe, zakonisht mjafton t-test ose alternativa jo-parametrik
     },
     correlation: {
       meta: "Korelacion",
-      content: `E kuptova si pyetje për lidhjen ndërmjet variablave.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për lidhjen ndërmjet variablave.
 
 1. Pearson përdoret kur variablat janë interval/ratio dhe supozimet janë të pranueshme.
 2. Spearman përdoret kur të dhënat janë ordinal, jo normale ose marrëdhënia është monotone.
@@ -169,7 +178,9 @@ ${contextLine}`
     },
     "test-choice": {
       meta: "Zgjedhje testi",
-      content: `E kuptova si pyetje: “cilin test statistikor duhet ta përdor?”
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për zgjedhjen e testit statistikor.
 
 Mënyra më e sigurt është kjo:
 
@@ -190,7 +201,9 @@ Në mesazhin tjetër më shkruaj variablat dhe grupet, dhe ta zgjedh testin më 
     },
     apa: {
       meta: "APA 7",
-      content: `E kuptova si kërkesë për raportim akademik sipas APA 7.
+      content: `${understoodQuestion}
+
+E kuptova si kërkesë për raportim akademik sipas APA 7.
 
 Struktura e mirë është:
 
@@ -206,7 +219,9 @@ Dërgo output-in nga SPSS dhe e kthej në paragraf të plotë APA 7.`
     },
     hypothesis: {
       meta: "Hipoteza",
-      content: `E kuptova si pyetje për ndërtim hipotezash.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për ndërtim hipotezash.
 
 1. Fillo nga problemi kërkimor.
 2. Përcakto variablat kryesore.
@@ -222,7 +237,9 @@ Nëse ma jep temën, ta formuloj në mënyrë më konkrete.`
     },
     methodology: {
       meta: "Metodologji",
-      content: `E kuptova si pyetje metodologjike.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje metodologjike.
 
 Përgjigjja duhet ndërtuar me këto elemente:
 
@@ -238,7 +255,9 @@ Nëse më shkruan temën dhe objektivin, ta kthej në tekst metodologjik akademi
     },
     descriptive: {
       meta: "Statistikë deskriptive",
-      content: `E kuptova si pyetje për statistikë deskriptive.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për statistikë deskriptive.
 
 Në SPSS zakonisht raporton:
 
@@ -252,7 +271,9 @@ Raportim akademik:
     },
     factor: {
       meta: "Analizë faktoriale",
-      content: `E kuptova si pyetje për analizë faktoriale.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për analizë faktoriale.
 
 Kontrollo:
 
@@ -266,7 +287,9 @@ Nëse më jep KMO, Bartlett dhe loadings kryesore, ta ndihmoj me interpretim aka
     },
     questionnaire: {
       meta: "Pyetësor",
-      content: `E kuptova si pyetje për pyetësor ose shkallë matëse.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për pyetësor ose shkallë matëse.
 
 Sugjerim strukture:
 
@@ -280,7 +303,9 @@ Mund të më japësh temën dhe unë të propozoj dimensione dhe iteme.`
     },
     normality: {
       meta: "Normalitet",
-      content: `E kuptova si pyetje për normalitetin.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për normalitetin.
 
 Në SPSS kontrollo:
 
@@ -295,7 +320,9 @@ Nëse normaliteti nuk mbahet, mund të përdorësh alternativa jo-parametrike os
     },
     missing: {
       meta: "Vlera të munguara",
-      content: `E kuptova si pyetje për vlera të munguara.
+      content: `${understoodQuestion}
+
+E kuptova si pyetje për vlera të munguara.
 
 Hapat:
 
@@ -309,7 +336,9 @@ Në SPSS mund të fillosh me Analyze > Descriptive Statistics > Frequencies ose 
     },
     syntax: {
       meta: "SPSS Syntax",
-      content: `E kuptova si kërkesë për syntax në SPSS.
+      content: `${understoodQuestion}
+
+E kuptova si kërkesë për syntax në SPSS.
 
 Mund të gjeneroj syntax, por më duhen:
 
@@ -327,7 +356,9 @@ Dërgo emrat realë të variablave dhe ta përshtas syntax-in.`
     },
     general: {
       meta: "Përgjigje e strukturuar",
-      content: `E kuptova pyetjen si kërkesë për orientim akademik.
+      content: `${understoodQuestion}
+
+E kuptova pyetjen si kërkesë për orientim akademik.
 
 Përgjigjja ime e parë:
 
@@ -368,33 +399,37 @@ export default function ChatPage() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
-  function sendMessage(value = input) {
+  function sendMessage(value: string) {
     const clean = value.trim();
-    if (!clean || isThinking) return;
+    if (!clean) return;
 
     const answer = buildAnswer(clean);
-    setMessages((current) => [...current, { role: "user", content: clean }]);
+    const userMessage: Message = { role: "user", content: clean };
+    const mentorMessage: Message = {
+      role: "mentor",
+      meta: answer.meta,
+      content: answer.content
+    };
+
+    setMessages((current) => [...current, userMessage]);
     setInput("");
     setIsThinking(true);
 
     window.setTimeout(() => {
-      setMessages((current) => [
-        ...current,
-        { role: "mentor", meta: answer.meta, content: answer.content }
-      ]);
+      setMessages((current) => [...current, mentorMessage]);
       setIsThinking(false);
-    }, 420);
+    }, 180);
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    sendMessage();
+    sendMessage(input);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      sendMessage();
+      sendMessage(input);
     }
   }
 
@@ -570,8 +605,7 @@ export default function ChatPage() {
                 />
                 <button
                   type="submit"
-                  disabled={isThinking}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-academy-violet px-5 py-3 font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#5749ee] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-academy-violet px-5 py-3 font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#5749ee]"
                 >
                   <Send size={18} />
                   Dërgo
