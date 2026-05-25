@@ -6,174 +6,384 @@ import {
   BarChart3,
   BookOpenCheck,
   BrainCircuit,
+  CheckCircle2,
+  ClipboardList,
   FileText,
   GraduationCap,
   LineChart,
+  Loader2,
+  MessageSquareText,
   Send,
   ShieldCheck,
+  Sparkles,
   Upload
 } from "lucide-react";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 
 type Message = {
   role: "mentor" | "user";
   content: string;
+  meta?: string;
 };
 
+type Intent =
+  | "cronbach"
+  | "regression"
+  | "anova"
+  | "correlation"
+  | "test-choice"
+  | "apa"
+  | "hypothesis"
+  | "methodology"
+  | "descriptive"
+  | "factor"
+  | "questionnaire"
+  | "normality"
+  | "missing"
+  | "syntax"
+  | "general";
+
 const quickPrompts = [
-  "Kam të dhëna në Excel. Cilin test duhet ta përdor?",
-  "Si ta interpretoj Cronbach's Alpha?",
-  "Kam bërë regresion linear. Si ta raportoj sipas APA 7?",
-  "Si të ndërtoj hipotezat për temën time?"
+  "Kam dy grupe dhe dua të krahasoj mesataren. Cilin test përdor?",
+  "Si ta raportoj regresionin linear sipas APA 7?",
+  "A është Cronbach Alpha .68 i pranueshëm?",
+  "Më ndihmo të ndërtoj hipotezat për temën time"
 ];
 
-const allowedTopics = [
-  "SPSS",
-  "analizë statistikore",
-  "metodologji hulumtimi",
-  "hipoteza",
-  "pyetësorë",
-  "APA 7",
-  "interpretim rezultatesh"
+const modeCards = [
+  {
+    icon: ClipboardList,
+    title: "E kupton pyetjen siç shkruhet",
+    text: "Nuk kërkon formulim perfekt; identifikon qëllimin dhe të orienton."
+  },
+  {
+    icon: LineChart,
+    title: "Analizë statistikore",
+    text: "Sugjeron teste, supozime, interpretim dhe hapa në SPSS."
+  },
+  {
+    icon: GraduationCap,
+    title: "Raportim akademik",
+    text: "Kthen rezultatet në formulim të qartë dhe të kujdesshëm sipas APA 7."
+  }
 ];
 
-function buildMentorAnswer(input: string) {
-  const text = input.toLowerCase();
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ç/g, "c")
+    .replace(/ë/g, "e");
+}
 
-  if (
-    !/(spss|statistik|analiz|metodolog|hulumtim|hipotez|pyet[eë]sor|apa|cronbach|alpha|anova|regres|korelacion|excel|t[- ]?test|chi|faktorial|deskriptiv|inferencial)/i.test(
-      input
-    )
-  ) {
-    return `Faleminderit për pyetjen. Unë jam i fokusuar vetëm në SPSS, analizë statistikore, metodologji të hulumtimit shkencor dhe raportim sipas APA 7.
+function detectIntent(input: string): Intent {
+  const text = normalize(input);
 
-Mund ta riformulosh pyetjen duke përfshirë, për shembull: llojin e variablave, numrin e grupeve, qëllimin e analizës, hipotezën ose output-in nga SPSS.`;
-  }
+  if (/(cronbach|alpha|alfa|besueshmeri|reliability)/.test(text)) return "cronbach";
+  if (/(regres|regression|predikt|parashik|r2|r²|koeficient|beta)/.test(text)) return "regression";
+  if (/(anova|variance|varianc|post hoc|tukey|games)/.test(text)) return "anova";
+  if (/(korelacion|correlation|pearson|spearman|lidhje)/.test(text)) return "correlation";
+  if (/(cilin test|cfare test|cili test|test duhet|krahasoj|grupe|mesatare|excel|te dhena)/.test(text)) return "test-choice";
+  if (/(apa|raportoj|raportim|shkruaj rezultatin|paragraf)/.test(text)) return "apa";
+  if (/(hipotez|pyetje kerkimore|research question|objektiv)/.test(text)) return "hypothesis";
+  if (/(metodolog|moster|kampion|dizajn|instrument|validitet|variabla)/.test(text)) return "methodology";
+  if (/(deskriptiv|frekuenc|mesatare|devijim standard|minimum|maximum)/.test(text)) return "descriptive";
+  if (/(faktorial|factor|kmo|bartlett|rotacion|komponent)/.test(text)) return "factor";
+  if (/(pyetesor|shkalle|item|ankete|likert)/.test(text)) return "questionnaire";
+  if (/(normalitet|shapiro|kolmogorov|histogram|skew|kurtosis)/.test(text)) return "normality";
+  if (/(missing|munguar|vlera te munguara|pa pergjigje)/.test(text)) return "missing";
+  if (/(syntax|komande|kod|sintaks)/.test(text)) return "syntax";
 
-  if (text.includes("cronbach") || text.includes("alpha")) {
-    return `Për Cronbach's Alpha, kontrollo këto pika:
+  return "general";
+}
 
-1. Qëllimi: vlerëson konsistencën e brendshme të një shkalle ose grupi itemesh.
-2. Interpretimi orientues: vlera më të larta zakonisht tregojnë besueshmëri më të mirë, por duhet parë edhe konteksti teorik, numri i itemeve dhe cilësia e pyetjeve.
-3. Në SPSS: Analyze > Scale > Reliability Analysis.
-4. Kontrollo tabelën "Item-Total Statistics" për iteme që mund ta ulin besueshmërinë.
-5. Raportim APA 7: "Shkalla tregoi konsistencë të brendshme të pranueshme, Cronbach's alpha = .XX."
+function extractNumbers(input: string) {
+  return input.match(/-?\d+([.,]\d+)?/g)?.slice(0, 8).join(", ") || "";
+}
 
-Kujdes: mos e përdor alpha si provë të vetme për validitetin e instrumentit.`;
-  }
+function buildAnswer(input: string) {
+  const intent = detectIntent(input);
+  const numbers = extractNumbers(input);
+  const contextLine = numbers
+    ? `Vlerat që përmende: ${numbers}. Do t'i trajtoj si orientuese, sepse interpretimi varet nga konteksti dhe dizajni i studimit.`
+    : "Nëse ke vlera nga SPSS, mund t'i shtosh në mesazhin tjetër dhe do t'i integroj në interpretim.";
 
-  if (text.includes("regres")) {
-    return `Për regresion linear në SPSS, ndiq këtë strukturë:
+  const templates: Record<Intent, { meta: string; content: string }> = {
+    cronbach: {
+      meta: "Besueshmëri e shkallës",
+      content: `E kuptova si pyetje për Cronbach's Alpha dhe besueshmërinë e instrumentit.
 
-1. Identifiko variablën e varur dhe variablat e pavarura.
-2. Kontrollo supozimet: lineariteti, normaliteti i mbetjeve, homoskedasticiteti, multikolineariteti dhe outliers.
+1. Çfarë mat: Cronbach's Alpha vlerëson konsistencën e brendshme të itemeve që supozohet të matin të njëjtin konstrukt.
+2. Si lexohet: vlerat më të larta zakonisht tregojnë konsistencë më të mirë, por interpretimi varet nga numri i itemeve, fusha dhe qëllimi i shkallës.
+3. Çfarë të kontrollosh në SPSS: tabelën Reliability Statistics dhe Item-Total Statistics.
+4. Kujdes metodologjik: alpha nuk provon vetë validitetin; tregon vetëm një aspekt të besueshmërisë.
+5. Raportim APA 7: “Shkalla tregoi konsistencë të brendshme të pranueshme, Cronbach's alpha = .XX.”
+
+${contextLine}`
+    },
+    regression: {
+      meta: "Regresion",
+      content: `E kuptova si pyetje për regresion.
+
+1. Përcakto variablën e varur dhe prediktorët.
+2. Kontrollo supozimet: linearitet, normalitet i mbetjeve, homoskedasticitet, multikolinearitet dhe outliers.
 3. Në SPSS: Analyze > Regression > Linear.
-4. Interpreto Model Summary, ANOVA dhe Coefficients.
-5. Raportim APA 7: përfshi R², F, p, koeficientët B/β, t dhe p për prediktorët kryesorë.
+4. Interpreto Model Summary për R², ANOVA për domethënien e modelit dhe Coefficients për prediktorët.
+5. Raportim APA 7: përfshi R², F, df, p, B ose β, t dhe p.
 
-Shembull formulimi: "Modeli i regresionit ishte statistikisht domethënës, F(df1, df2) = X.XX, p = .XXX, dhe shpjegoi X% të variancës në variablën e varur."`;
-  }
+Shembull: “Modeli i regresionit ishte statistikisht domethënës, F(df1, df2) = X.XX, p = .XXX, duke shpjeguar X% të variancës në variablën e varur.”
 
-  if (text.includes("anova")) {
-    return `Për ANOVA në SPSS:
+${contextLine}`
+    },
+    anova: {
+      meta: "Krahasim grupesh",
+      content: `E kuptova si pyetje për ANOVA ose krahasim mesataresh.
 
-1. Përdore kur krahason mesataret e tri ose më shumë grupeve.
+1. ANOVA përdoret kur krahason mesataret e tri ose më shumë grupeve.
 2. Kontrollo normalitetin, homogjenitetin e variancave dhe pavarësinë e observimeve.
 3. Në SPSS: Analyze > Compare Means > One-Way ANOVA.
-4. Nëse rezultati është domethënës, përdor post-hoc tests, si Tukey ose Games-Howell sipas supozimeve.
-5. Raportim APA 7: "U gjet një dallim domethënës ndërmjet grupeve, F(df1, df2) = X.XX, p = .XXX, η² = .XX."`;
-  }
+4. Nëse p < .05, shiko post-hoc tests për të kuptuar cilat grupe dallojnë.
+5. Raportim APA 7: “U gjet dallim domethënës ndërmjet grupeve, F(df1, df2) = X.XX, p = .XXX.”
 
-  if (text.includes("korelacion") || text.includes("correlation")) {
-    return `Për korelacion:
+Nëse ke vetëm dy grupe, zakonisht mjafton t-test ose alternativa jo-parametrike.`
+    },
+    correlation: {
+      meta: "Korelacion",
+      content: `E kuptova si pyetje për lidhjen ndërmjet variablave.
 
-1. Përdor Pearson kur variablat janë interval/ratio dhe supozimet janë të pranueshme.
-2. Përdor Spearman kur të dhënat janë ordinal, jo normale ose marrëdhënia është monotone.
+1. Pearson përdoret kur variablat janë interval/ratio dhe supozimet janë të pranueshme.
+2. Spearman përdoret kur të dhënat janë ordinal, jo normale ose marrëdhënia është monotone.
 3. Në SPSS: Analyze > Correlate > Bivariate.
 4. Interpreto drejtimin, forcën dhe domethënien statistikore.
-5. Raportim APA 7: "U gjet korelacion pozitiv ndërmjet X dhe Y, r = .XX, p = .XXX."`;
-  }
+5. Raportim APA 7: “U gjet korelacion pozitiv ndërmjet X dhe Y, r = .XX, p = .XXX.”
 
-  if (text.includes("hipotez")) {
-    return `Për ndërtimin e hipotezave:
+${contextLine}`
+    },
+    "test-choice": {
+      meta: "Zgjedhje testi",
+      content: `E kuptova si pyetje: “cilin test statistikor duhet ta përdor?”
 
-1. Fillo me problemin kërkimor dhe objektivin e studimit.
-2. Përcakto variablat kryesore dhe marrëdhënien e pritshme.
-3. Formulo pyetjen kërkimore në mënyrë të matshme.
-4. Shkruaj hipotezën alternative dhe, kur duhet, hipotezën zero.
-5. Lidhe hipotezën me analizën statistikore që mund ta testojë.
+Mënyra më e sigurt është kjo:
 
-Shembull: "H1: Ekziston një lidhje statistikisht domethënëse ndërmjet motivimit akademik dhe performancës së studentëve."`;
-  }
+1. Identifiko variablën e varur.
+2. Shiko nivelin e matjes: nominal, ordinal, interval apo ratio.
+3. Shiko numrin e grupeve: një, dy, tri apo më shumë.
+4. Shiko nëse grupet janë të pavarura apo të lidhura.
+5. Kontrollo supozimet për normalitet dhe varianca.
 
-  if (text.includes("excel") || text.includes("test")) {
-    return `Për të zgjedhur testin e duhur, më duhen këto informacione:
-
-1. Cila është variabla e varur?
-2. Cilat janë variablat e pavarura ose grupet krahasuese?
-3. Çfarë niveli matjeje kanë variablat: nominal, ordinal, interval apo ratio?
-4. Sa grupe po krahason?
-5. A janë të dhënat të pavarura apo të përsëritura?
-
-Udhëzim orientues:
+Orientim i shpejtë:
 - Dy grupe të pavarura: independent-samples t-test ose Mann-Whitney U.
 - Dy matje të lidhura: paired-samples t-test ose Wilcoxon.
 - Tri ose më shumë grupe: ANOVA ose Kruskal-Wallis.
-- Marrëdhënie ndërmjet variablave: korelacion ose regresion.`;
-  }
+- Marrëdhënie ndërmjet variablave: korelacion ose regresion.
+- Variabla kategorike: Chi-square.
 
-  if (text.includes("apa")) {
-    return `Për raportim sipas APA 7:
+Në mesazhin tjetër më shkruaj variablat dhe grupet, dhe ta zgjedh testin më saktë.`
+    },
+    apa: {
+      meta: "APA 7",
+      content: `E kuptova si kërkesë për raportim akademik sipas APA 7.
 
-1. Raporto testin statistik, shkallët e lirisë, vlerën statistikore, p-value dhe madhësinë e efektit kur është e përshtatshme.
-2. Përfshi interpretim të shkurtër, jo vetëm numra.
-3. Përdor formatin akademik me simbole statistikore të sakta.
-4. Mos e mbështet përfundimin vetëm te p-value; lidhe rezultatin me pyetjen kërkimore.
+Struktura e mirë është:
 
-Nëse më jep output-in nga SPSS, mund ta strukturoj në një paragraf akademik sipas APA 7.`;
-  }
+1. Emërto testin statistikor.
+2. Jep vlerën statistikore, df, p-value dhe madhësinë e efektit kur është e përshtatshme.
+3. Jep interpretim të shkurtër në lidhje me hipotezën.
+4. Mos e tepro me përfundime që nuk mbështeten nga të dhënat.
 
-  return `Mund ta trajtojmë në mënyrë akademike. Për një përgjigje më të saktë, më dërgo:
+Model formulimi:
+“Rezultatet treguan se [analiza/testi] ishte statistikisht domethënës, [statistika] = X.XX, p = .XXX, duke sugjeruar se [interpretimi akademik].”
 
-1. Qëllimin e analizës.
-2. Variablat dhe nivelin e matjes.
-3. Numrin e grupeve ose mostrave.
-4. Nëse ke output nga SPSS, vlerat kryesore të tabelës.
-5. Çfarë dëshiron: zgjedhje testi, syntax, interpretim apo raportim APA 7.
+Dërgo output-in nga SPSS dhe e kthej në paragraf të plotë APA 7.`
+    },
+    hypothesis: {
+      meta: "Hipoteza",
+      content: `E kuptova si pyetje për ndërtim hipotezash.
 
-Synimi im është të ofroj përgjigje të strukturuara, të udhëhequra akademikisht dhe të dizajnuara për të mbështetur analizën kritike.`;
+1. Fillo nga problemi kërkimor.
+2. Përcakto variablat kryesore.
+3. Vendos drejtimin e marrëdhënies ose dallimit që pret.
+4. Formulo hipotezën alternative dhe hipotezën zero.
+5. Lidhe hipotezën me testin statistikor.
+
+Shembull:
+H1: Ekziston lidhje statistikisht domethënëse ndërmjet motivimit akademik dhe performancës së studentëve.
+H0: Nuk ekziston lidhje statistikisht domethënëse ndërmjet motivimit akademik dhe performancës së studentëve.
+
+Nëse ma jep temën, ta formuloj në mënyrë më konkrete.`
+    },
+    methodology: {
+      meta: "Metodologji",
+      content: `E kuptova si pyetje metodologjike.
+
+Përgjigjja duhet ndërtuar me këto elemente:
+
+1. Qëllimi i studimit.
+2. Dizajni kërkimor: kuantitativ, cilësor ose i përzier.
+3. Popullata dhe mostra.
+4. Instrumenti matës dhe variablat.
+5. Procedura e mbledhjes së të dhënave.
+6. Analizat statistikore të planifikuara në SPSS.
+7. Kufizimet dhe konsideratat etike.
+
+Nëse më shkruan temën dhe objektivin, ta kthej në tekst metodologjik akademik.`
+    },
+    descriptive: {
+      meta: "Statistikë deskriptive",
+      content: `E kuptova si pyetje për statistikë deskriptive.
+
+Në SPSS zakonisht raporton:
+
+1. Frekuenca dhe përqindje për variabla kategorike.
+2. Mesatare dhe devijim standard për variabla numerike.
+3. Minimum, maximum dhe numrin valid të rasteve.
+4. Grafikë: bar chart për kategori, histogram për variabla numerike.
+
+Raportim akademik:
+“Mesatarja e variablës X ishte M = X.XX, SD = X.XX, duke treguar [interpretim i shkurtër].”`
+    },
+    factor: {
+      meta: "Analizë faktoriale",
+      content: `E kuptova si pyetje për analizë faktoriale.
+
+Kontrollo:
+
+1. KMO për përshtatshmërinë e mostrës.
+2. Bartlett's Test për korrelacionet ndërmjet itemeve.
+3. Communalities dhe factor loadings.
+4. Numrin e faktorëve dhe metodën e rotacionit.
+5. Interpretimin teorik të faktorëve, jo vetëm rezultatet numerike.
+
+Nëse më jep KMO, Bartlett dhe loadings kryesore, ta ndihmoj me interpretim akademik.`
+    },
+    questionnaire: {
+      meta: "Pyetësor",
+      content: `E kuptova si pyetje për pyetësor ose shkallë matëse.
+
+Sugjerim strukture:
+
+1. Përcakto konstruktin që mat.
+2. Ndaje në dimensione teorike.
+3. Formulo iteme të qarta, njëdimensionale dhe jo të dykuptimta.
+4. Përdor shkallë Likert kur mat qëndrime, perceptime ose pajtim.
+5. Testo besueshmërinë me Cronbach's Alpha dhe, kur duhet, strukturën me analizë faktoriale.
+
+Mund të më japësh temën dhe unë të propozoj dimensione dhe iteme.`
+    },
+    normality: {
+      meta: "Normalitet",
+      content: `E kuptova si pyetje për normalitetin.
+
+Në SPSS kontrollo:
+
+1. Shapiro-Wilk për mostra më të vogla.
+2. Kolmogorov-Smirnov për mostra më të mëdha, me kujdes në interpretim.
+3. Histogram, Q-Q plot, skewness dhe kurtosis.
+4. Outliers që mund të ndikojnë shpërndarjen.
+
+Kujdes: p-value nuk duhet interpretuar vetëm. Shiko edhe grafikët dhe madhësinë e mostrës.
+
+Nëse normaliteti nuk mbahet, mund të përdorësh alternativa jo-parametrike ose transformime, sipas rastit.`
+    },
+    missing: {
+      meta: "Vlera të munguara",
+      content: `E kuptova si pyetje për vlera të munguara.
+
+Hapat:
+
+1. Shiko sa përqind mungojnë për secilën variabël.
+2. Kontrollo nëse mungesa është rastësore apo e lidhur me ndonjë grup.
+3. Mos fshi raste automatikisht pa arsyetim.
+4. Për mungesa të vogla mund të përdoret listwise/pairwise deletion, varësisht analizës.
+5. Për mungesa më serioze, shqyrto imputim ose raportim të qartë të kufizimit.
+
+Në SPSS mund të fillosh me Analyze > Descriptive Statistics > Frequencies ose Missing Value Analysis.`
+    },
+    syntax: {
+      meta: "SPSS Syntax",
+      content: `E kuptova si kërkesë për syntax në SPSS.
+
+Mund të gjeneroj syntax, por më duhen:
+
+1. Emrat e variablave.
+2. Lloji i analizës.
+3. Grupet ose prediktorët.
+4. Çfarë output-i dëshiron.
+
+Shembull për descriptives:
+
+DESCRIPTIVES VARIABLES=variabla1 variabla2
+  /STATISTICS=MEAN STDDEV MIN MAX.
+
+Dërgo emrat realë të variablave dhe ta përshtas syntax-in.`
+    },
+    general: {
+      meta: "Përgjigje e strukturuar",
+      content: `E kuptova pyetjen si kërkesë për orientim akademik.
+
+Përgjigjja ime e parë:
+
+1. Nëse po kërkon analizë statistikore, fillo nga variablat, niveli i matjes dhe pyetja kërkimore.
+2. Nëse po kërkon metodologji, sqaro dizajnin, mostrën, instrumentin dhe procedurën.
+3. Nëse po kërkon raportim, dërgo rezultatin ose tabelën kryesore dhe e kthejmë në tekst akademik.
+4. Nëse pyetja lidhet me SPSS, mund të të jap edhe rrugën në menu ose syntax.
+
+Më shkruaj pak më konkretisht çfarë ke përpara: temën, variablat, output-in ose problemin. Do të të përgjigjem drejtpërdrejt dhe me strukturë.`
+    }
+  };
+
+  return templates[intent];
 }
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "mentor",
+      meta: "Mirëseardhje",
       content:
-        "Mirë se erdhe në SPSS Academy Mentor. Më shkruaj pyetjen tënde për SPSS, analizë statistikore, metodologji hulumtimi ose raportim APA 7."
+        "Mirë se erdhe. Shkruaje pyetjen ashtu si e ke në mendje: për SPSS, metodologji, hipoteza, test statistikor, output ose raportim APA 7. Do ta interpretoj qëllimin dhe do të të përgjigjem me hapa të qartë."
     }
   ]);
   const [input, setInput] = useState("");
-  const [uploadedFile, setUploadedFile] = useState<string>("");
+  const [uploadedFile, setUploadedFile] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
   const lastTopic = useMemo(() => {
     const userMessages = messages.filter((message) => message.role === "user");
     const latest = userMessages[userMessages.length - 1];
-    return latest ? latest.content.slice(0, 80) : "Pyetje akademike";
+    return latest ? latest.content.slice(0, 72) : "Pyetje akademike";
   }, [messages]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isThinking]);
 
   function sendMessage(value = input) {
     const clean = value.trim();
-    if (!clean) return;
+    if (!clean || isThinking) return;
 
-    const nextMessages: Message[] = [
-      ...messages,
-      { role: "user", content: clean },
-      { role: "mentor", content: buildMentorAnswer(clean) }
-    ];
-
-    setMessages(nextMessages);
+    const answer = buildAnswer(clean);
+    setMessages((current) => [...current, { role: "user", content: clean }]);
     setInput("");
+    setIsThinking(true);
+
+    window.setTimeout(() => {
+      setMessages((current) => [
+        ...current,
+        { role: "mentor", meta: answer.meta, content: answer.content }
+      ]);
+      setIsThinking(false);
+    }, 420);
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -181,19 +391,26 @@ export default function ChatPage() {
     sendMessage();
   }
 
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-academy-mist text-academy-ink">
-      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,rgba(101,87,255,0.16),transparent_32%),linear-gradient(180deg,#f7f9fd,#eef3fb)] text-academy-ink">
+      <header className="sticky top-0 z-40 border-b border-white/70 bg-white/78 backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
           <Link href="/" className="flex items-center gap-3 font-semibold">
-            <span className="grid size-10 place-items-center rounded-lg bg-academy-navy text-white">
+            <span className="grid size-10 place-items-center rounded-xl bg-academy-navy text-white shadow-soft">
               <BarChart3 size={21} />
             </span>
             <span>SPSS Academy Mentor</span>
           </Link>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50"
           >
             <ArrowLeft size={16} />
             Kthehu
@@ -201,42 +418,52 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[320px_1fr] lg:px-8">
+      <section className="mx-auto grid max-w-7xl gap-6 px-5 py-6 lg:grid-cols-[340px_1fr] lg:px-8">
         <aside className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
-            <div className="mb-4 grid size-12 place-items-center rounded-xl bg-violet-50 text-academy-violet">
-              <BrainCircuit size={25} />
+          <div className="rounded-[28px] bg-[linear-gradient(145deg,#07132d,#102f66_58%,#6557ff)] p-6 text-white shadow-glow">
+            <div className="mb-5 grid size-12 place-items-center rounded-2xl bg-white/14 text-white">
+              <BrainCircuit size={26} />
             </div>
             <h1 className="text-2xl font-semibold">Chat akademik</h1>
-            <p className="mt-3 leading-7 text-slate-600">
-              Fokus ekskluziv në SPSS, statistika, metodologji kërkimore dhe
-              raportim APA 7.
+            <p className="mt-3 leading-7 text-white/75">
+              Shkruaj lirshëm. Mentori e kupton qëllimin, jep përgjigje të
+              strukturuar dhe të orienton drejt analizës.
             </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold">Fushat e mbuluara</h2>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {allowedTopics.map((topic) => (
-                <span
-                  key={topic}
-                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
-                >
-                  {topic}
-                </span>
-              ))}
+            <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs text-white/78">
+              <span className="glass-panel p-2">SPSS</span>
+              <span className="glass-panel p-2">APA 7</span>
+              <span className="glass-panel p-2">Metodë</span>
             </div>
           </div>
 
+          <div className="grid gap-3">
+            {modeCards.map(({ icon: Icon, title, text }) => (
+              <div
+                key={title}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-academy-violet">
+                    <Icon size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold">{title}</h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold">Shembuj të shpejtë</h2>
+            <h2 className="font-semibold">Pyetje të shpejta</h2>
             <div className="mt-4 grid gap-2">
               {quickPrompts.map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
                   onClick={() => sendMessage(prompt)}
-                  className="rounded-lg border border-slate-200 px-3 py-3 text-left text-sm leading-6 text-slate-700 transition hover:border-academy-violet hover:bg-violet-50"
+                  className="rounded-xl border border-slate-200 px-3 py-3 text-left text-sm leading-6 text-slate-700 transition hover:-translate-y-0.5 hover:border-academy-violet hover:bg-violet-50"
                 >
                   {prompt}
                 </button>
@@ -245,51 +472,65 @@ export default function ChatPage() {
           </div>
         </aside>
 
-        <section className="flex min-h-[calc(100vh-130px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft">
-          <div className="border-b border-slate-200 bg-white px-5 py-4">
+        <section className="flex min-h-[calc(100vh-132px)] flex-col overflow-hidden rounded-[28px] border border-white bg-white/86 shadow-soft backdrop-blur">
+          <div className="border-b border-slate-200 bg-white/90 px-5 py-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-academy-violet">
                   Mentor virtual akademik
                 </p>
-                <h2 className="mt-1 text-xl font-semibold">
-                  {lastTopic}
-                </h2>
+                <h2 className="mt-1 text-xl font-semibold">{lastTopic}</h2>
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <ShieldCheck className="text-academy-violet" size={18} />
-                Përgjigje të strukturuara dhe kontroll kritik
+                Përgjigje me strukturë, jo refuzim
               </div>
             </div>
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 px-4 py-5 md:px-6">
+          <div className="chat-scroll flex-1 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,#f8fafc,#eef3fb)] px-4 py-5 md:px-6">
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`message-pop flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-3xl whitespace-pre-line rounded-2xl px-5 py-4 leading-7 shadow-sm ${
+                  className={`max-w-3xl rounded-3xl px-5 py-4 leading-7 shadow-sm ${
                     message.role === "user"
                       ? "bg-academy-violet text-white"
                       : "border border-slate-200 bg-white text-slate-700"
                   }`}
                 >
-                  {message.content}
+                  {message.meta && message.role === "mentor" && (
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-academy-violet">
+                      <Sparkles size={13} />
+                      {message.meta}
+                    </div>
+                  )}
+                  <div className="whitespace-pre-line">{message.content}</div>
                 </div>
               </div>
             ))}
+
+            {isThinking && (
+              <div className="message-pop flex justify-start">
+                <div className="inline-flex items-center gap-3 rounded-3xl border border-slate-200 bg-white px-5 py-4 text-slate-600 shadow-sm">
+                  <Loader2 className="animate-spin text-academy-violet" size={18} />
+                  Po e analizoj pyetjen...
+                </div>
+              </div>
+            )}
+            <div ref={endRef} />
           </div>
 
           <div className="border-t border-slate-200 bg-white p-4">
             {uploadedFile && (
-              <div className="mb-3 inline-flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-sm font-medium text-academy-violet">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-xl bg-violet-50 px-3 py-2 text-sm font-medium text-academy-violet">
                 <FileText size={16} />
                 {uploadedFile}
               </div>
             )}
-            <form onSubmit={onSubmit} className="flex flex-col gap-3 md:flex-row">
+            <form onSubmit={onSubmit} className="flex flex-col gap-3">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -303,33 +544,39 @@ export default function ChatPage() {
                     ...current,
                     {
                       role: "mentor",
+                      meta: "Skedar i shtuar",
                       content:
-                        "Skedari u vendos në ndërfaqe. Në këtë version lokal mund të shkruash çfarë përmban output-i ose tabela kryesore, dhe unë do ta strukturoj interpretimin akademik."
+                        "Skedari u vendos në ndërfaqe. Në këtë version lokal nuk lexoj automatikisht përmbajtjen e tij, por mund të shkruash tabelën, output-in ose variablat kryesore dhe unë do t'i interpretoj."
                     }
                   ]);
                 }}
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                <Upload size={18} />
-                Skedar
-              </button>
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder="Shkruaj pyetjen për SPSS, testin statistikor, output-in ose raportimin APA 7..."
-                className="min-h-12 flex-1 rounded-lg border border-slate-200 px-4 py-3 outline-none transition focus:border-academy-violet"
-              />
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-academy-violet px-5 py-3 font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#5749ee]"
-              >
-                <Send size={18} />
-                Dërgo
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Upload size={18} />
+                  Skedar
+                </button>
+                <textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={onKeyDown}
+                  rows={1}
+                  placeholder="Shkruaj pyetjen ashtu si e mendon: test, output, hipotezë, metodologji, APA 7..."
+                  className="max-h-36 min-h-12 flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-academy-violet"
+                />
+                <button
+                  type="submit"
+                  disabled={isThinking}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-academy-violet px-5 py-3 font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#5749ee] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Send size={18} />
+                  Dërgo
+                </button>
+              </div>
             </form>
             <div className="mt-3 grid gap-2 text-xs leading-5 text-slate-500 md:grid-cols-3">
               <span className="inline-flex items-center gap-2">
